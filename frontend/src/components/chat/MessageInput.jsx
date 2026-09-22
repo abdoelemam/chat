@@ -90,6 +90,11 @@ const MessageInput = () => {
   // --- Voice Recording Handlers ---
   const startRecording = async () => {
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast.error("المتصفح لا يدعم التسجيل أو الموقع ليس HTTPS");
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       audioChunksRef.current = [];
@@ -161,7 +166,11 @@ const MessageInput = () => {
       }, 1000);
     } catch (err) {
       console.error("Microphone access denied or error:", err);
-      toast.error("Could not access microphone");
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        toast.error("يرجى تفعيل إذن المايكروفون من إعدادات المتصفح (علامة 🔒)");
+      } else {
+        toast.error("تعذر الوصول إلى المايكروفون");
+      }
     }
   };
 

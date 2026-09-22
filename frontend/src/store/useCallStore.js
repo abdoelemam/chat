@@ -36,6 +36,11 @@ export const useCallStore = create((set, get) => ({
         return;
       }
 
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast.error("المتصفح لا يدعم المايك أو الموقع ليس HTTPS");
+        return;
+      }
+
       // 1. Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       set({ localStream: stream, callStatus: "calling", callee: userToCall });
@@ -110,9 +115,9 @@ export const useCallStore = create((set, get) => ({
     } catch (err) {
       console.error("[Call] Failed to start call:", err);
       if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        toast.error("Microphone permission denied");
+        toast.error("يرجى تفعيل إذن المايكروفون من إعدادات المتصفح (علامة 🔒)");
       } else {
-        toast.error("Could not start call");
+        toast.error("تعذر بدء المكالمة");
       }
       get().endCall(false);
     }
@@ -130,6 +135,11 @@ export const useCallStore = create((set, get) => ({
       }
 
       const callerId = (caller._id || caller.id)?.toString();
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast.error("المتصفح لا يدعم المايك أو الموقع ليس HTTPS");
+        return;
+      }
 
       // 1. Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -192,9 +202,9 @@ export const useCallStore = create((set, get) => ({
     } catch (err) {
       console.error("[Call] Failed to answer call:", err);
       if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        toast.error("Microphone permission denied");
+        toast.error("يرجى تفعيل إذن المايكروفون من إعدادات المتصفح (علامة 🔒)");
       } else {
-        toast.error("Could not answer call");
+        toast.error("تعذر الرد على المكالمة");
       }
       get().endCall(false);
     }
