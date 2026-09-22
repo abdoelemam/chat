@@ -127,7 +127,7 @@ const MessageInput = () => {
         }
 
         const audioBlob = new Blob(audioChunksRef.current, {
-          type: mimeType || "audio/webm",
+          type: "audio/webm",
         });
 
         if (audioBlob.size === 0) return;
@@ -136,7 +136,10 @@ const MessageInput = () => {
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = async () => {
-          const base64Audio = reader.result;
+          let base64Audio = reader.result;
+          if (typeof base64Audio === "string") {
+            base64Audio = base64Audio.replace(/;codecs=[^;]+/, "");
+          }
           try {
             setIsSendingAudio(true);
             await sendMessage({ audio: base64Audio });

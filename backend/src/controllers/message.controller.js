@@ -113,9 +113,13 @@ export const sendMessage = async (req, res) => {
         let audioUrl;
         if (audio) {
             try {
-                const uploadResponse = await cloudinary.uploader.upload(audio, {
-                    resource_type: "video", // Cloudinary uses "video" resource_type for audio files
+                // Strip parameter attributes like ;codecs=opus that cause Cloudinary data URI parser to fail
+                const cleanAudio = typeof audio === "string" ? audio.replace(/;codecs=[^;]+/, "") : audio;
+
+                const uploadResponse = await cloudinary.uploader.upload(cleanAudio, {
+                    resource_type: "auto",
                     folder: "chatweb/audio",
+                    public_id: `voice_${Date.now()}.webm`,
                 });
                 audioUrl = uploadResponse.secure_url;
             } catch (uploadError) {
