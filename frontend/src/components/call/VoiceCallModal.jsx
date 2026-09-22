@@ -2,6 +2,28 @@ import React, { useEffect, useRef, useState } from "react";
 import { Mic, MicOff, PhoneOff, Video, VideoOff } from "lucide-react";
 import { useCallStore } from "../../store/useCallStore.js";
 
+// Dedicated component to ensure video element always attaches srcObject upon mount
+const VideoView = ({ stream, muted = false, className = "" }) => {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch((err) => console.warn("Video play warning:", err));
+    }
+  }, [stream]);
+
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      playsInline
+      muted={muted}
+      className={className}
+    />
+  );
+};
+
 const VoiceCallModal = () => {
   const {
     callStatus,
@@ -17,35 +39,18 @@ const VoiceCallModal = () => {
 
   const [isMuted, setIsMuted] = useState(false);
   const [duration, setDuration] = useState(0);
-
-  const localVideoRef = useRef(null);
-  const remoteVideoRef = useRef(null);
   const audioRef = useRef(null);
 
   const isVideo = callType === "video";
   const targetUser = callee || caller;
 
-  // Bind remote stream for both video and audio
+  // Audio stream playback for voice calls
   useEffect(() => {
-    if (remoteStream) {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStream;
-        remoteVideoRef.current.play().catch((err) => console.warn("Remote video play error:", err));
-      }
-      if (audioRef.current) {
-        audioRef.current.srcObject = remoteStream;
-        audioRef.current.play().catch((err) => console.warn("Remote audio play error:", err));
-      }
+    if (audioRef.current && remoteStream && !isVideo) {
+      audioRef.current.srcObject = remoteStream;
+      audioRef.current.play().catch((err) => console.warn("Audio play warning:", err));
     }
-  }, [remoteStream, isVideo, callStatus]);
-
-  // Bind local stream for self video preview
-  useEffect(() => {
-    if (isVideo && localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
-      localVideoRef.current.play().catch((e) => console.warn("Local video play error:", e));
-    }
-  }, [localStream, isVideo, callStatus]);
+  }, [remoteStream, isVideo]);
 
   // Timer
   useEffect(() => {
@@ -79,26 +84,20 @@ const VoiceCallModal = () => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md select-none overflow-hidden">
       {/* Audio element for voice calls */}
-      <audio ref={audioRef} autoPlay />
+      {!isVideo && <audio ref={audioRef} autoPlay />}
 
       {isVideo ? (
         /* ================= VIDEO CALL VIEW ================= */
         <div className="relative w-full h-full flex flex-col justify-between p-4 sm:p-6">
           {/* Main Remote Video Container */}
           <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-neutral-900 overflow-hidden">
-            {/* Remote video element ALWAYS rendered in DOM so ref is never null */}
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              className={`w-full h-full object-cover sm:object-contain transition-opacity duration-300 ${
-                callStatus === "inCall" && remoteStream ? "opacity-100" : "opacity-0 pointer-events-none"
-              }`}
-            />
-
-            {/* Calling / Connecting Placeholder */}
-            {(!remoteStream || callStatus !== "inCall") && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center space-y-4">
+            {callStatus === "inCall" && remoteStream ? (
+              <VideoView
+                stream={remoteStream}
+                className="w-full h-full object-cover sm:object-contain"
+              />
+            ) : (
+              <div className="flex flex-col items-center space-y-4">
                 <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden border-4 border-primary/40 animate-pulse shadow-2xl">
                   <img
                     src={targetUser.profilePic || "/avatar.png"}
@@ -127,19 +126,18 @@ const VoiceCallModal = () => {
 
           {/* Local PIP Video (Self Preview) */}
           <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20 w-28 h-40 sm:w-36 sm:h-52 rounded-2xl overflow-hidden border-2 border-primary/50 shadow-2xl bg-neutral-800">
-            {isCameraOff && (
+            {isCameraOff ? (
               <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-neutral-900 text-white/60 p-2 text-center text-xs">
                 <VideoOff className="w-6 h-6" />
                 <span>Camera Off</span>
               </div>
-            )}
-            <video
-              ref={localVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className={`w-full h-full object-cover ${isCameraOff ? "hidden" : "block"}`}
-            />
+            ) : localStream ? (
+              <VideoView
+                stream={localStream}
+                muted={true}
+                className="w-full h-full object-cover"
+              />
+            ) : null}
           </div>
 
           {/* Bottom Floating Controls */}

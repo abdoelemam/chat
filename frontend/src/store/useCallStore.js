@@ -45,10 +45,10 @@ export const useCallStore = create((set, get) => ({
 
       const isVideo = type === "video";
 
-      // 1. Request microphone and optional camera access
+      // 1. Request microphone and optional camera access (use ideal facingMode for mobile compatibility)
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: isVideo ? { facingMode: "user" } : false,
+        video: isVideo ? { facingMode: { ideal: "user" } } : false,
       });
 
       set({
@@ -70,7 +70,7 @@ export const useCallStore = create((set, get) => ({
       pc.ontrack = (event) => {
         console.log("[Call] Remote stream track received:", event.track.kind);
         if (event.streams && event.streams[0]) {
-          set({ remoteStream: new MediaStream(event.streams[0].getTracks()) });
+          set({ remoteStream: event.streams[0] });
         }
       };
 
@@ -163,7 +163,7 @@ export const useCallStore = create((set, get) => ({
       // 1. Request microphone and optional camera access
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: isVideo ? { facingMode: "user" } : false,
+        video: isVideo ? { facingMode: { ideal: "user" } } : false,
       });
 
       set({
@@ -184,7 +184,7 @@ export const useCallStore = create((set, get) => ({
       pc.ontrack = (event) => {
         console.log("[Call] Remote stream track received by callee:", event.track.kind);
         if (event.streams && event.streams[0]) {
-          set({ remoteStream: new MediaStream(event.streams[0].getTracks()) });
+          set({ remoteStream: event.streams[0] });
         }
       };
 
