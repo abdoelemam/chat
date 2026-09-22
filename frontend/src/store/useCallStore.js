@@ -7,6 +7,8 @@ const ICE_SERVERS = {
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
     { urls: "stun:stun2.l.google.com:19302" },
+    { urls: "stun:stun3.l.google.com:19302" },
+    { urls: "stun:stun4.l.google.com:19302" },
   ],
 };
 
@@ -21,6 +23,20 @@ export const useCallStore = create((set, get) => ({
   localStream: null,
   remoteStream: null,
   isCameraOff: false,
+
+  handleIceCandidate: async (candidate) => {
+    if (!candidate) return;
+    const { peer } = get();
+    if (peer && peer.remoteDescription && peer.remoteDescription.type) {
+      try {
+        await peer.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) {
+        console.warn("[Call] Error adding ice candidate:", e);
+      }
+    } else {
+      pendingCandidates.push(candidate);
+    }
+  },
 
   callUser: async (userToCall, type = "audio") => {
     try {
@@ -45,10 +61,16 @@ export const useCallStore = create((set, get) => ({
 
       const isVideo = type === "video";
 
-      // 1. Request microphone and optional camera access (use ideal facingMode for mobile compatibility)
+      // 1. Request microphone and optional camera access with ideal mobile constraints
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: isVideo ? { facingMode: { ideal: "user" } } : false,
+        video: isVideo
+          ? {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: { ideal: "user" },
+            }
+          : false,
       });
 
       set({
@@ -89,28 +111,13 @@ export const useCallStore = create((set, get) => ({
           await pc.setRemoteDescription(new RTCSessionDescription(signal));
           set({ callStatus: "inCall" });
 
-          // Process queued ICE candidates
+          // Process all queued ICE candidates
           while (pendingCandidates.length > 0) {
             const cand = pendingCandidates.shift();
             await pc.addIceCandidate(new RTCIceCandidate(cand)).catch((e) => console.warn(e));
           }
         } catch (e) {
           console.error("[Call] Error setting remote description:", e);
-        }
-      });
-
-      // Listen for ICE candidates from callee
-      socket.off("iceCandidate");
-      socket.on("iceCandidate", async ({ candidate }) => {
-        if (!candidate) return;
-        try {
-          if (pc.remoteDescription && pc.remoteDescription.type) {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          } else {
-            pendingCandidates.push(candidate);
-          }
-        } catch (e) {
-          console.error("[Call] Error adding ICE candidate:", e);
         }
       });
 
@@ -163,7 +170,13 @@ export const useCallStore = create((set, get) => ({
       // 1. Request microphone and optional camera access
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: isVideo ? { facingMode: { ideal: "user" } } : false,
+        video: isVideo
+          ? {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: { ideal: "user" },
+            }
+          : false,
       });
 
       set({
@@ -172,7 +185,6 @@ export const useCallStore = create((set, get) => ({
         callType: isVideo ? "video" : "audio",
         isCameraOff: false,
       });
-      pendingCandidates = [];
 
       // 2. Create RTCPeerConnection
       const pc = new RTCPeerConnection(ICE_SERVERS);
@@ -195,25 +207,10 @@ export const useCallStore = create((set, get) => ({
         }
       };
 
-      // Listen for ICE candidates from caller
-      socket.off("iceCandidate");
-      socket.on("iceCandidate", async ({ candidate }) => {
-        if (!candidate) return;
-        try {
-          if (pc.remoteDescription && pc.remoteDescription.type) {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          } else {
-            pendingCandidates.push(candidate);
-          }
-        } catch (e) {
-          console.error("[Call] Error adding ICE candidate:", e);
-        }
-      });
-
       // Set caller's offer as remote description
       await pc.setRemoteDescription(new RTCSessionDescription(caller.signal));
 
-      // Process any queued candidates
+      // Process any queued candidates that arrived before user accepted
       while (pendingCandidates.length > 0) {
         const cand = pendingCandidates.shift();
         await pc.addIceCandidate(new RTCIceCandidate(cand)).catch((e) => console.warn(e));
@@ -276,7 +273,6 @@ export const useCallStore = create((set, get) => ({
 
     if (socket) {
       socket.off("callAccepted");
-      socket.off("iceCandidate");
     }
 
     pendingCandidates = [];

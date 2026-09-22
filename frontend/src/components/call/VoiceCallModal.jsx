@@ -9,9 +9,18 @@ const VideoView = ({ stream, muted = false, className = "" }) => {
   useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
-      videoRef.current.play().catch((err) => console.warn("Video play warning:", err));
+      const playPromise = videoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn("Video play warning:", err);
+          if (err.name === "NotAllowedError" && !muted) {
+            videoRef.current.muted = true;
+            videoRef.current.play().catch((e) => console.warn("Muted retry failed:", e));
+          }
+        });
+      }
     }
-  }, [stream]);
+  }, [stream, muted]);
 
   return (
     <video
@@ -44,13 +53,13 @@ const VoiceCallModal = () => {
   const isVideo = callType === "video";
   const targetUser = callee || caller;
 
-  // Audio stream playback for voice calls
+  // Audio stream playback (ensures audio always plays)
   useEffect(() => {
-    if (audioRef.current && remoteStream && !isVideo) {
+    if (audioRef.current && remoteStream) {
       audioRef.current.srcObject = remoteStream;
       audioRef.current.play().catch((err) => console.warn("Audio play warning:", err));
     }
-  }, [remoteStream, isVideo]);
+  }, [remoteStream]);
 
   // Timer
   useEffect(() => {

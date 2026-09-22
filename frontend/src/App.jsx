@@ -38,6 +38,9 @@ function App() {
       socket.on("callEnded", () => {
         endCall(false);
       });
+      socket.on("iceCandidate", ({ candidate }) => {
+        useCallStore.getState().handleIceCandidate(candidate);
+      });
 
       socket.on("groupUpdated", (updatedGroup) => {
         useChatStore.getState().updateConversationDetails(updatedGroup);
@@ -50,6 +53,7 @@ function App() {
       return () => {
         socket.off("incomingCall");
         socket.off("callEnded");
+        socket.off("iceCandidate");
         socket.off("groupUpdated");
         socket.off("leftGroup");
       };
