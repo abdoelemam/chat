@@ -32,22 +32,43 @@ export const setupSocket = (server) => {
 
         // Voice call events (WebRTC signaling)
         socket.on("callUser", ({ userToCall, signalData, from }) => {
-            const receiverSocketId = onlineUsers.get(userToCall);
+            const targetId = userToCall?.toString();
+            console.log(`[Call] ${from?.fullName || from?._id} calling ${targetId}`);
+            const receiverSocketId = onlineUsers.get(targetId);
             if (receiverSocketId) {
+                console.log(`[Call] Forwarding call to socket: ${receiverSocketId}`);
                 io.to(receiverSocketId).emit("incomingCall", { signal: signalData, from });
+            } else {
+                console.log(`[Call] User ${targetId} is NOT online. Online users:`, Array.from(onlineUsers.keys()));
+                // Notify caller that user is offline
+                socket.emit("callEnded");
             }
         });
 
         socket.on("answerCall", ({ to, signal }) => {
-            const callerSocketId = onlineUsers.get(to);
+            const targetId = to?.toString();
+            console.log(`[Call] Answer from ${userId} to ${targetId}`);
+            const callerSocketId = onlineUsers.get(targetId);
             if (callerSocketId) {
                 io.to(callerSocketId).emit("callAccepted", signal);
             }
         });
 
+        socket.on("iceCandidate", ({ to, candidate }) => {
+            const targetId = to?.toString();
+            if (targetId && candidate) {
+                const receiverSocketId = onlineUsers.get(targetId);
+                if (receiverSocketId) {
+                    io.to(receiverSocketId).emit("iceCandidate", { candidate });
+                }
+            }
+        });
+
         socket.on("endCall", ({ to }) => {
-            if (to) {
-                const receiverSocketId = onlineUsers.get(to);
+            const targetId = to?.toString();
+            console.log(`[Call] End call from ${userId} to ${targetId}`);
+            if (targetId) {
+                const receiverSocketId = onlineUsers.get(targetId);
                 if (receiverSocketId) {
                     io.to(receiverSocketId).emit("callEnded");
                 }

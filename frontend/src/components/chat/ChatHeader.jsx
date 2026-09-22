@@ -51,8 +51,11 @@ const ChatHeader = () => {
   const isOnline = !isGroup && userId && onlineUsers.includes(userId.toString ? userId.toString() : userId);
 
   const handleCall = () => {
-    if (!isGroup && otherUser) {
-      callUser(otherUser);
+    if (!isGroup) {
+      const target = otherUser || { _id: userId, fullName: name, profilePic: avatar };
+      if (target && (target._id || target.id)) {
+        callUser(target);
+      }
     }
   };
 

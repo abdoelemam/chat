@@ -36,7 +36,7 @@ function App() {
         setIncomingCall({ ...data.from, signal: data.signal });
       });
       socket.on("callEnded", () => {
-        endCall();
+        endCall(false);
       });
 
       socket.on("groupUpdated", (updatedGroup) => {
