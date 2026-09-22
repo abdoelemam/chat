@@ -14,13 +14,15 @@ let pendingCandidates = [];
 
 export const useCallStore = create((set, get) => ({
   callStatus: "idle", // idle, calling, receiving, inCall
+  callType: "audio", // audio, video
   caller: null,
   callee: null,
   peer: null, // RTCPeerConnection instance
   localStream: null,
   remoteStream: null,
+  isCameraOff: false,
 
-  callUser: async (userToCall) => {
+  callUser: async (userToCall, type = "audio") => {
     try {
       const socket = useAuthStore.getState().socket;
       const authUser = useAuthStore.getState().authUser;
@@ -37,24 +39,36 @@ export const useCallStore = create((set, get) => ({
       }
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        toast.error("المتصفح لا يدعم المايك أو الموقع ليس HTTPS");
+        toast.error("المتصفح لا يدعم المايك/الكاميرا أو الموقع ليس HTTPS");
         return;
       }
 
-      // 1. Request microphone access
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      set({ localStream: stream, callStatus: "calling", callee: userToCall });
+      const isVideo = type === "video";
+
+      // 1. Request microphone and optional camera access
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: isVideo ? { facingMode: "user" } : false,
+      });
+
+      set({
+        localStream: stream,
+        callStatus: "calling",
+        callee: userToCall,
+        callType: type,
+        isCameraOff: false,
+      });
       pendingCandidates = [];
 
       // 2. Create RTCPeerConnection
       const pc = new RTCPeerConnection(ICE_SERVERS);
 
-      // Add local audio tracks
+      // Add local audio & video tracks
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-      // Handle remote audio stream
+      // Handle remote audio & video stream
       pc.ontrack = (event) => {
-        console.log("[Call] Remote audio stream received");
+        console.log("[Call] Remote stream track received");
         if (event.streams && event.streams[0]) {
           set({ remoteStream: event.streams[0] });
         }
@@ -104,18 +118,21 @@ export const useCallStore = create((set, get) => ({
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      console.log("[Call] Emitting callUser to:", targetUserId);
+      console.log("[Call] Emitting callUser to:", targetUserId, "type:", type);
       socket.emit("callUser", {
         userToCall: targetUserId,
         signalData: offer,
-        from: authUser,
+        from: {
+          ...authUser,
+          callType: type,
+        },
       });
 
       set({ peer: pc });
     } catch (err) {
       console.error("[Call] Failed to start call:", err);
       if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        toast.error("يرجى تفعيل إذن المايكروفون من إعدادات المتصفح (علامة 🔒)");
+        toast.error("يرجى تفعيل إذن المايكروفون/الكاميرا من إعدادات المتصفح (علامة 🔒)");
       } else {
         toast.error("تعذر بدء المكالمة");
       }
@@ -137,24 +154,35 @@ export const useCallStore = create((set, get) => ({
       const callerId = (caller._id || caller.id)?.toString();
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        toast.error("المتصفح لا يدعم المايك أو الموقع ليس HTTPS");
+        toast.error("المتصفح لا يدعم المايك/الكاميرا أو الموقع ليس HTTPS");
         return;
       }
 
-      // 1. Request microphone access
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      set({ localStream: stream, callStatus: "inCall" });
+      const isVideo = caller.callType === "video";
+
+      // 1. Request microphone and optional camera access
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: isVideo ? { facingMode: "user" } : false,
+      });
+
+      set({
+        localStream: stream,
+        callStatus: "inCall",
+        callType: isVideo ? "video" : "audio",
+        isCameraOff: false,
+      });
       pendingCandidates = [];
 
       // 2. Create RTCPeerConnection
       const pc = new RTCPeerConnection(ICE_SERVERS);
 
-      // Add local audio tracks
+      // Add local audio & video tracks
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-      // Handle remote audio stream
+      // Handle remote audio & video stream
       pc.ontrack = (event) => {
-        console.log("[Call] Remote audio stream received by callee");
+        console.log("[Call] Remote stream track received by callee");
         if (event.streams && event.streams[0]) {
           set({ remoteStream: event.streams[0] });
         }
@@ -202,11 +230,22 @@ export const useCallStore = create((set, get) => ({
     } catch (err) {
       console.error("[Call] Failed to answer call:", err);
       if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        toast.error("يرجى تفعيل إذن المايكروفون من إعدادات المتصفح (علامة 🔒)");
+        toast.error("يرجى تفعيل إذن المايكروفون/الكاميرا من إعدادات المتصفح (علامة 🔒)");
       } else {
         toast.error("تعذر الرد على المكالمة");
       }
       get().endCall(false);
+    }
+  },
+
+  toggleCamera: () => {
+    const { localStream, isCameraOff } = get();
+    if (localStream) {
+      const videoTrack = localStream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = isCameraOff;
+        set({ isCameraOff: !isCameraOff });
+      }
     }
   },
 
@@ -244,16 +283,22 @@ export const useCallStore = create((set, get) => ({
 
     set({
       callStatus: "idle",
+      callType: "audio",
       caller: null,
       callee: null,
       peer: null,
       localStream: null,
       remoteStream: null,
+      isCameraOff: false,
     });
   },
 
   setIncomingCall: (callerData) => {
-    console.log("[Call] Incoming call from:", callerData?.fullName);
-    set({ callStatus: "receiving", caller: callerData });
+    console.log("[Call] Incoming call from:", callerData?.fullName, "type:", callerData?.callType);
+    set({
+      callStatus: "receiving",
+      caller: callerData,
+      callType: callerData?.callType || "audio",
+    });
   },
 }));

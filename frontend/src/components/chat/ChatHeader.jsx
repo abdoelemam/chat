@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Phone, X, Info } from "lucide-react";
+import { Phone, Video, X, Info } from "lucide-react";
 import { useAuthStore } from "../../store/useAuthStore.js";
 import { useChatStore } from "../../store/useChatStore.js";
 import { useCallStore } from "../../store/useCallStore.js";
@@ -50,11 +50,11 @@ const ChatHeader = () => {
 
   const isOnline = !isGroup && userId && onlineUsers.includes(userId.toString ? userId.toString() : userId);
 
-  const handleCall = () => {
+  const handleCall = (type = "audio") => {
     if (!isGroup) {
       const target = otherUser || { _id: userId, fullName: name, profilePic: avatar };
       if (target && (target._id || target.id)) {
-        callUser(target);
+        callUser(target, type);
       }
     }
   };
@@ -98,9 +98,22 @@ const ChatHeader = () => {
               <Info className="w-5 h-5 text-base-content/70 hover:text-primary transition-colors" />
             </button>
           ) : (
-            <button onClick={handleCall} className="btn btn-circle btn-ghost btn-sm" title="Voice Call">
-              <Phone className="w-5 h-5 text-base-content/70 hover:text-primary transition-colors" />
-            </button>
+            <>
+              <button
+                onClick={() => handleCall("audio")}
+                className="btn btn-circle btn-ghost btn-sm"
+                title="Voice Call"
+              >
+                <Phone className="w-5 h-5 text-base-content/70 hover:text-primary transition-colors" />
+              </button>
+              <button
+                onClick={() => handleCall("video")}
+                className="btn btn-circle btn-ghost btn-sm"
+                title="Video Call"
+              >
+                <Video className="w-5 h-5 text-base-content/70 hover:text-primary transition-colors" />
+              </button>
+            </>
           )}
           <button
             onClick={() => setSelectedConversation(null)}
