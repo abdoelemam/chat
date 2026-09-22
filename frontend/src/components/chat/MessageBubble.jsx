@@ -1,7 +1,111 @@
-import React from "react";
+import React, { useState, useRef } from "react";
 import { formatMessageTime } from "../../lib/utils.js";
 import { useAuthStore } from "../../store/useAuthStore.js";
 import { useChatStore } from "../../store/useChatStore.js";
+import { Play, Pause } from "lucide-react";
+
+const VoiceNotePlayer = ({ src, isSentByMe }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef(null);
+
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().then(() => {
+        setIsPlaying(true);
+      }).catch((err) => {
+        console.warn("Audio playback error:", err);
+      });
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration || 0);
+    }
+  };
+
+  const handleSeek = (e) => {
+    const time = Number(e.target.value);
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+      setCurrentTime(time);
+    }
+  };
+
+  const handleEnded = () => {
+    setIsPlaying(false);
+    setCurrentTime(0);
+  };
+
+  const formatTime = (time) => {
+    if (isNaN(time) || !isFinite(time)) return "0:00";
+    const m = Math.floor(time / 60);
+    const s = Math.floor(time % 60);
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
+
+  return (
+    <div className="flex items-center gap-3 py-1.5 min-w-[210px] max-w-[270px]">
+      <audio
+        ref={audioRef}
+        src={src}
+        preload="metadata"
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onEnded={handleEnded}
+      />
+
+      <button
+        type="button"
+        onClick={togglePlay}
+        className={`btn btn-circle btn-sm shadow-md flex-shrink-0 ${
+          isSentByMe
+            ? "bg-white text-primary hover:bg-white/90 border-0"
+            : "btn-primary text-white"
+        }`}
+        title={isPlaying ? "Pause" : "Play"}
+      >
+        {isPlaying ? (
+          <Pause className="w-4 h-4 fill-current" />
+        ) : (
+          <Play className="w-4 h-4 fill-current ml-0.5" />
+        )}
+      </button>
+
+      <div className="flex-1 flex flex-col gap-1 min-w-0">
+        <input
+          type="range"
+          min="0"
+          max={duration || 100}
+          step="0.1"
+          value={currentTime}
+          onChange={handleSeek}
+          className="range range-xs cursor-pointer"
+        />
+        <div
+          className={`flex justify-between text-[11px] font-mono select-none ${
+            isSentByMe ? "text-primary-content/80" : "text-base-content/70"
+          }`}
+        >
+          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const MessageBubble = ({ message, isSentByMe }) => {
   const { authUser } = useAuthStore();
@@ -9,10 +113,10 @@ const MessageBubble = ({ message, isSentByMe }) => {
 
   // Handle populated senderId (object) vs unpopulated (string)
   const sender = typeof message.senderId === "object" ? message.senderId : null;
-  
+
   let senderAvatar = "/avatar.png";
   let senderName = "";
-  
+
   if (isSentByMe) {
     senderAvatar = authUser.profilePic || "/avatar.png";
   } else if (sender) {
@@ -49,7 +153,7 @@ const MessageBubble = ({ message, isSentByMe }) => {
           </div>
         </div>
       )}
-      
+
       {isGroupChat && !isSentByMe && senderName && (
         <div className="chat-header mb-1 opacity-70 text-xs">
           <span className="font-semibold">{senderName}</span>
@@ -69,6 +173,11 @@ const MessageBubble = ({ message, isSentByMe }) => {
             onClick={() => window.open(message.image, "_blank")}
           />
         )}
+
+        {message.audio && (
+          <VoiceNotePlayer src={message.audio} isSentByMe={isSentByMe} />
+        )}
+
         {message.text && <p>{message.text}</p>}
       </div>
 

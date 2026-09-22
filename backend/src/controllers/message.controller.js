@@ -62,7 +62,7 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
     try {
-        const { text, image } = req.body;
+        const { text, image, audio } = req.body;
         let { conversationId } = req.params;
         const senderId = req.user._id;
 
@@ -110,11 +110,26 @@ export const sendMessage = async (req, res) => {
             }
         }
 
+        let audioUrl;
+        if (audio) {
+            try {
+                const uploadResponse = await cloudinary.uploader.upload(audio, {
+                    resource_type: "video", // Cloudinary uses "video" resource_type for audio files
+                    folder: "chatweb/audio",
+                });
+                audioUrl = uploadResponse.secure_url;
+            } catch (uploadError) {
+                console.error("Cloudinary audio upload error:", uploadError.message);
+                return res.status(400).json({ message: "Audio upload failed: " + uploadError.message });
+            }
+        }
+
         const newMessage = new Message({
             conversationId,
             senderId,
             text,
             image: imageUrl,
+            audio: audioUrl,
         });
 
         await newMessage.save();

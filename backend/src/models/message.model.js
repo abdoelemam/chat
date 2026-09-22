@@ -17,6 +17,9 @@ const messageSchema = new mongoose.Schema({
     image: {
         type: String,
     },
+    audio: {
+        type: String,
+    },
     isSystem: {
         type: Boolean,
         default: false,
