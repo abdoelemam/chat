@@ -68,9 +68,9 @@ export const useCallStore = create((set, get) => ({
 
       // Handle remote audio & video stream
       pc.ontrack = (event) => {
-        console.log("[Call] Remote stream track received");
+        console.log("[Call] Remote stream track received:", event.track.kind);
         if (event.streams && event.streams[0]) {
-          set({ remoteStream: event.streams[0] });
+          set({ remoteStream: new MediaStream(event.streams[0].getTracks()) });
         }
       };
 
@@ -182,9 +182,9 @@ export const useCallStore = create((set, get) => ({
 
       // Handle remote audio & video stream
       pc.ontrack = (event) => {
-        console.log("[Call] Remote stream track received by callee");
+        console.log("[Call] Remote stream track received by callee:", event.track.kind);
         if (event.streams && event.streams[0]) {
-          set({ remoteStream: event.streams[0] });
+          set({ remoteStream: new MediaStream(event.streams[0].getTracks()) });
         }
       };
 

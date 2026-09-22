@@ -25,24 +25,27 @@ const VoiceCallModal = () => {
   const isVideo = callType === "video";
   const targetUser = callee || caller;
 
-  // Bind remote stream
+  // Bind remote stream for both video and audio
   useEffect(() => {
     if (remoteStream) {
-      if (isVideo && remoteVideoRef.current) {
+      if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStream;
+        remoteVideoRef.current.play().catch((err) => console.warn("Remote video play error:", err));
       }
       if (audioRef.current) {
         audioRef.current.srcObject = remoteStream;
+        audioRef.current.play().catch((err) => console.warn("Remote audio play error:", err));
       }
     }
-  }, [remoteStream, isVideo]);
+  }, [remoteStream, isVideo, callStatus]);
 
-  // Bind local stream for video preview
+  // Bind local stream for self video preview
   useEffect(() => {
     if (isVideo && localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.play().catch((e) => console.warn("Local video play error:", e));
     }
-  }, [localStream, isVideo]);
+  }, [localStream, isVideo, callStatus]);
 
   // Timer
   useEffect(() => {
@@ -75,23 +78,27 @@ const VoiceCallModal = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md select-none overflow-hidden">
-      {/* Audio element for voice calls or audio playback */}
+      {/* Audio element for voice calls */}
       <audio ref={audioRef} autoPlay />
 
       {isVideo ? (
         /* ================= VIDEO CALL VIEW ================= */
         <div className="relative w-full h-full flex flex-col justify-between p-4 sm:p-6">
-          {/* Main Remote Video */}
-          <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-neutral-900">
-            {callStatus === "inCall" && remoteStream ? (
-              <video
-                ref={remoteVideoRef}
-                autoPlay
-                playsInline
-                className="w-full h-full object-cover sm:object-contain"
-              />
-            ) : (
-              <div className="flex flex-col items-center space-y-4">
+          {/* Main Remote Video Container */}
+          <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-neutral-900 overflow-hidden">
+            {/* Remote video element ALWAYS rendered in DOM so ref is never null */}
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              className={`w-full h-full object-cover sm:object-contain transition-opacity duration-300 ${
+                callStatus === "inCall" && remoteStream ? "opacity-100" : "opacity-0 pointer-events-none"
+              }`}
+            />
+
+            {/* Calling / Connecting Placeholder */}
+            {(!remoteStream || callStatus !== "inCall") && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center space-y-4">
                 <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden border-4 border-primary/40 animate-pulse shadow-2xl">
                   <img
                     src={targetUser.profilePic || "/avatar.png"}
@@ -120,20 +127,19 @@ const VoiceCallModal = () => {
 
           {/* Local PIP Video (Self Preview) */}
           <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20 w-28 h-40 sm:w-36 sm:h-52 rounded-2xl overflow-hidden border-2 border-primary/50 shadow-2xl bg-neutral-800">
-            {isCameraOff ? (
+            {isCameraOff && (
               <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-neutral-900 text-white/60 p-2 text-center text-xs">
                 <VideoOff className="w-6 h-6" />
                 <span>Camera Off</span>
               </div>
-            ) : (
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
-              />
             )}
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`w-full h-full object-cover ${isCameraOff ? "hidden" : "block"}`}
+            />
           </div>
 
           {/* Bottom Floating Controls */}
